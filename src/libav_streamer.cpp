@@ -8,6 +8,7 @@
 namespace web_video_server
 {
 
+#if ( LIBAVCODEC_VERSION_INT  < AV_VERSION_INT(58,9,100) )
 static int ffmpeg_boost_mutex_lock_manager(void **mutex, enum AVLockOp op)
 {
   if (NULL == mutex)
@@ -47,6 +48,7 @@ static int ffmpeg_boost_mutex_lock_manager(void **mutex, enum AVLockOp op)
   }
   return 0;
 }
+#endif
 
 LibavStreamer::LibavStreamer(const async_web_server_cpp::HttpRequest &request,
                              async_web_server_cpp::HttpConnectionPtr connection, ros::NodeHandle& nh,
@@ -119,7 +121,7 @@ void LibavStreamer::initialize(const cv::Mat &img)
                                                                                                          NULL, NULL);
     throw std::runtime_error("Error allocating ffmpeg format context");
   }
-  output_format_ = av_guess_format(format_name_.c_str(), NULL, NULL);
+  *output_format_ = *av_guess_format(format_name_.c_str(), NULL, NULL);
   if (!output_format_)
   {
     async_web_server_cpp::HttpReply::stock_reply(async_web_server_cpp::HttpReply::internal_server_error)(request_,
@@ -148,9 +150,9 @@ void LibavStreamer::initialize(const cv::Mat &img)
 
   // Load codec
   if (codec_name_.empty()) // use default codec if none specified
-    codec_ = avcodec_find_encoder(output_format_->video_codec);
+    *codec_ = *avcodec_find_encoder(output_format_->video_codec);
   else
-    codec_ = avcodec_find_encoder_by_name(codec_name_.c_str());
+    *codec_ = *avcodec_find_encoder_by_name(codec_name_.c_str());
   if (!codec_)
   {
     async_web_server_cpp::HttpReply::stock_reply(async_web_server_cpp::HttpReply::internal_server_error)(request_,
@@ -173,8 +175,6 @@ void LibavStreamer::initialize(const cv::Mat &img)
   #endif
 
   // Set options
-  avcodec_get_context_defaults3(codec_context_, codec_);
-
   codec_context_->codec_id = codec_->id;
   codec_context_->bit_rate = bitrate_;
 
